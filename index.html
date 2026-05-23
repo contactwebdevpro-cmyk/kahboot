@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kahoot Bot Manager</title>
+    <style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --primary: #6366f1;
+    --primary-dark: #4f46e5;
+    --secondary: #ec4899;
+    --success: #10b981;
+    --danger: #ef4444;
+    --warning: #f59e0b;
+    --bg: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-tertiary: #334155;
+    --text: #f1f5f9;
+    --text-secondary: #cbd5e1;
+    --border: #475569;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background: linear-gradient(135deg, var(--bg) 0%, #1a1f3a 100%);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.header {
+    text-align: center;
+    margin-bottom: 40px;
+    padding: 40px 20px;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+    border-radius: 16px;
+    box-shadow: 0 20px 40px rgba(99, 102, 241, 0.2);
+}
+
+.header h1 {
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+    font-weight: 700;
+}
+
+.header p {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 1.1rem;
+}
+
+.main-content {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+    margin-bottom: 40px;
+}
+
+.form-section {
+    grid-column: 1;
+}
+
+.status-section {
+    grid-column: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.form-card, .status-card, .info-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 30px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(10px);
+}
+
+h2 {
+    font-size: 1.5rem;
+    margin-bottom: 25px;
+    color: var(--text);
+}
+
+h3 {
+    font-size: 1.2rem;
+    margin-bottom: 15px;
+    color: var(--text);
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 20px;
+    align-items: flex-end;
+}
+
+label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    font-weight: 500;
+}
+
+input[type="text"],
+input[type="number"] {
+    width: 100%;
+    padding: 12px 15px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 1rem;
+    transition: all 0.3s ease;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    background: rgba(99, 102, 241, 0.05);
+}
+
+input[type="text"]::placeholder,
+input[type="number"]::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.5;
+}
+
+.checkbox-group {
+    display: flex;
+    align-items: center;
+}
+
+.checkbox-group label {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0;
+    cursor: pointer;
+    gap: 8px;
+}
+
+.checkbox-group input[type="checkbox"] {
+    width: auto;
+    cursor: pointer;
+    accent-color: var(--primary);
+}
+
+.btn {
+    width: 100%;
+    padding: 14px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: white;
+    box-shadow: 0 10px 20px rgba(99, 102, 241, 0.3);
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 15px 30px rgba(99, 102, 241, 0.4);
+}
+
+.btn-primary:active {
+    transform: translateY(0);
+}
+
+.btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.btn-danger {
+    background: var(--danger);
+    color: white;
+    padding: 8px 12px;
+    width: auto;
+    font-size: 0.85rem;
+}
+
+.btn-danger:hover {
+    background: #dc2626;
+}
+
+.status-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.session-item {
+    background: var(--bg-tertiary);
+    border-left: 4px solid var(--primary);
+    padding: 15px;
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.session-info {
+    flex: 1;
+}
+
+.session-id {
+    font-weight: 600;
+    color: var(--primary);
+    margin-bottom: 4px;
+}
+
+.session-details {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.empty-state {
+    text-align: center;
+    color: var(--text-secondary);
+    padding: 20px 0;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+}
+
+.info-item {
+    background: var(--bg-tertiary);
+    padding: 15px;
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.info-item .label {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.info-item .value {
+    font-weight: 600;
+    color: var(--primary);
+    font-size: 1.2rem;
+}
+
+.footer {
+    text-align: center;
+    color: var(--text-secondary);
+    padding: 20px 0;
+    border-top: 1px solid var(--border);
+}
+
+.alert {
+    padding: 15px 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.alert-success {
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid var(--success);
+    color: var(--success);
+}
+
+.alert-error {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid var(--danger);
+    color: var(--danger);
+}
+
+.alert-info {
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid var(--primary);
+    color: var(--primary);
+}
+
+.loading {
+    display: inline-block;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@media (max-width: 768px) {
+    .main-content {
+        grid-template-columns: 1fr;
+    }
+
+    .form-section {
+        grid-column: 1;
+    }
+
+    .status-section {
+        grid-column: 1;
+    }
+
+    .header h1 {
+        font-size: 1.8rem;
+    }
+
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+
+    .info-grid {
+        grid-template-columns: 1fr;
+    }
+}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>🎮 Kahoot Bot Manager</h1>
+            <p>Démarrer et gérer vos bots Kahoot</p>
+        </header>
+
+        <main class="main-content">
+            <div class="form-section">
+                <div class="form-card">
+                    <h2>Configuration des bots</h2>
+                    <form id="botForm">
+                        <div class="form-group">
+                            <label for="gamePin">Code partie Kahoot</label>
+                            <input 
+                                type="number" 
+                                id="gamePin" 
+                                placeholder="Ex: 123456"
+                                required
+                            >
+                        </div>
+
+                        <div class="form-group">
+                            <label for="baseName">Nom des bots</label>
+                            <input 
+                                type="text" 
+                                id="baseName" 
+                                placeholder="Ex: Player"
+                                required
+                            >
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="nbBots">Nombre de bots</label>
+                                <input 
+                                    type="number" 
+                                    id="nbBots" 
+                                    min="1" 
+                                    max="800"
+                                    value="10"
+                                    required
+                                >
+                            </div>
+
+                            <div class="form-group checkbox-group">
+                                <label>
+                                    <input type="checkbox" id="autoReconnect">
+                                    <span>Reconnexion auto</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">
+                            ▶️ Démarrer les bots
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="status-section">
+                <div class="status-card">
+                    <h2>Sessions actives</h2>
+                    <div id="statusContainer" class="status-list">
+                        <p class="empty-state">Aucune session active</p>
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <h3>Informations</h3>
+                    <div id="infoContainer" class="info-grid">
+                        <div class="info-item">
+                            <span class="label">Sessions:</span>
+                            <span class="value" id="sessionCount">0</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Bots totaux:</span>
+                            <span class="value" id="botsCount">0</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Serveur:</span>
+                            <span class="value" id="serverStatus">Vérification...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <p>Made with ❤️</p>
+        </footer>
+    </div>
+
+    <script>
+const API_BASE = 'https://your-render-app.onrender.com';
+const form = document.getElementById('botForm');
+const statusContainer = document.getElementById('statusContainer');
+const sessionCount = document.getElementById('sessionCount');
+const botsCount = document.getElementById('botsCount');
+const serverStatus = document.getElementById('serverStatus');
+
+let totalBots = 0;
+let activeSessions = {};
+
+form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const gamePin = document.getElementById('gamePin').value;
+    const baseName = document.getElementById('baseName').value;
+    const nbBots = parseInt(document.getElementById('nbBots').value);
+    const autoReconnect = document.getElementById('autoReconnect').checked;
+
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="loading">⌛</span> Démarrage...';
+
+    try {
+        const formData = new FormData();
+        formData.append('game_pin', gamePin);
+        formData.append('base_name', baseName);
+        formData.append('nb_bots', nbBots);
+        formData.append('auto_reconnect', autoReconnect);
+
+        const response = await fetch(`${API_BASE}/api/start`, {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+            showAlert(data.error, 'error');
+        } else {
+            showAlert(`✅ ${data.message}`, 'success');
+            activeSessions[data.session_id] = {
+                count: nbBots,
+                gamePin: gamePin,
+                baseName: baseName
+            };
+            totalBots += nbBots;
+            updateStatus();
+            form.reset();
+        }
+    } catch (error) {
+        showAlert(`❌ Erreur: ${error.message}`, 'error');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+    }
+});
+
+async function stopSession(sessionId) {
+    if (!confirm('Arrêter cette session ?')) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/stop/${sessionId}`, {
+            method: 'GET'
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'stopped') {
+            const bots = activeSessions[sessionId].count;
+            totalBots -= bots;
+            delete activeSessions[sessionId];
+            updateStatus();
+            showAlert(`✅ Session arrêtée`, 'success');
+        }
+    } catch (error) {
+        showAlert(`❌ Erreur: ${error.message}`, 'error');
+    }
+}
+
+function updateStatus() {
+    const count = Object.keys(activeSessions).length;
+    sessionCount.textContent = count;
+    botsCount.textContent = totalBots;
+
+    if (count === 0) {
+        statusContainer.innerHTML = '<p class="empty-state">Aucune session active</p>';
+    } else {
+        statusContainer.innerHTML = Object.entries(activeSessions).map(([id, data]) => `
+            <div class="session-item">
+                <div class="session-info">
+                    <div class="session-id">Session: ${id}</div>
+                    <div class="session-details">
+                        Code: ${data.gamePin} | Bots: ${data.count} | Nom: ${data.baseName}
+                    </div>
+                </div>
+                <button class="btn btn-danger" onclick="stopSession('${id}')">Arrêter</button>
+            </div>
+        `).join('');
+    }
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type}`;
+    alertDiv.textContent = message;
+    
+    const container = document.querySelector('.form-card');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    setTimeout(() => alertDiv.remove(), 4000);
+}
+
+async function checkServerStatus() {
+    try {
+        const response = await fetch(`${API_BASE}/health`, { method: 'GET' });
+        if (response.ok) {
+            serverStatus.textContent = '🟢 Connecté';
+            serverStatus.style.color = 'var(--success)';
+        } else {
+            serverStatus.textContent = '🔴 Erreur';
+            serverStatus.style.color = 'var(--danger)';
+        }
+    } catch (error) {
+        serverStatus.textContent = '🔴 Hors ligne';
+        serverStatus.style.color = 'var(--danger)';
+    }
+}
+
+checkServerStatus();
+setInterval(checkServerStatus, 30000);
+    </script>
+</body>
+</html>
