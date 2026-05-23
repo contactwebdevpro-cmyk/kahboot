@@ -1,190 +1,99 @@
+from fastapi import FastAPI, Request, Form, BackgroundTasks
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 import asyncio
-from kahoot import KahootClient
-from colorama import Fore, Back, Style, init
+import uuid
+from typing import Dict, List
+import logging
 
-# Initialiser colorama
-init(autoreset=True)
+# Configuration logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-def print_banner():
-    """Affiche un banner coloré au démarrage"""
-    banner = f"""
-{Fore.CYAN}╔═══════════════════════════════════════════════════════╗
-{Fore.CYAN}║  {Fore.MAGENTA}██╗  ██╗ █████╗ ██╗  ██╗ ██████╗  ██████╗ ████████╗  {Fore.CYAN}║
-{Fore.CYAN}║  {Fore.MAGENTA}██║ ██╔╝██╔══██╗██║  ██║██╔═══██╗██╔═══██╗╚══██╔══╝  {Fore.CYAN}║
-{Fore.CYAN}║  {Fore.MAGENTA}█████╔╝ ███████║███████║██║   ██║██║   ██║   ██║     {Fore.CYAN}║
-{Fore.CYAN}║  {Fore.MAGENTA}██╔═██╗ ██╔══██║██╔══██║██║   ██║██║   ██║   ██║     {Fore.CYAN}║
-{Fore.CYAN}║  {Fore.MAGENTA}██║  ██╗██║  ██║██║  ██║╚██████╔╝╚██████╔╝   ██║     {Fore.CYAN}║
-{Fore.CYAN}║  {Fore.MAGENTA}╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝    ╚═╝     {Fore.CYAN}║
-{Fore.CYAN}║                                                       ║
-{Fore.CYAN}║          {Fore.YELLOW}🤖 Bot Flooder - Version 2.0 🤖{Fore.CYAN}             ║
-{Fore.CYAN}╚═══════════════════════════════════════════════════════╝{Style.RESET_ALL}
-"""
-    print(banner)
+app = FastAPI(title="Kahoot Bot Spawner", version="2.0")
 
-def print_menu():
-    """Affiche le menu principal"""
-    menu = f"""
-{Fore.GREEN}┌───────────────────────────────────────┐
-{Fore.GREEN}│  {Fore.WHITE}📋 MENU PRINCIPAL{Fore.GREEN}                  │
-{Fore.GREEN}└───────────────────────────────────────┘
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
 
-{Fore.YELLOW}[1]{Fore.WHITE} 🎮 Lancer l'attaque de bots
-{Fore.YELLOW}[2]{Fore.WHITE} ℹ️  Informations sur l'outil
-{Fore.YELLOW}[3]{Fore.WHITE} 🚪 Quitter
+# Stockage des sessions
+active_sessions: Dict[str, List[asyncio.Task]] = {}
 
-{Fore.CYAN}═══════════════════════════════════════{Style.RESET_ALL}
-"""
-    print(menu)
+# === Kahoot Client (à installer : pip install kahoot.py ou vehbiu/kahoot-py) ===
+try:
+    from kahoot import KahootClient
+except ImportError:
+    logger.error("Library kahoot non installée. pip install kahoot.py")
+    KahootClient = None
 
-def print_info():
-    """Affiche les informations sur l'outil"""
-    info = f"""
-{Fore.CYAN}╔════════════════════════════════════════════════════╗
-{Fore.CYAN}║  {Fore.YELLOW}📖 INFORMATIONS{Fore.CYAN}                                 ║
-{Fore.CYAN}╠════════════════════════════════════════════════════╣
-{Fore.CYAN}║                                                    ║
-{Fore.CYAN}║  {Fore.WHITE}Cet outil permet d'envoyer plusieurs bots          {Fore.CYAN}║
-{Fore.CYAN}║  {Fore.WHITE}dans une partie Kahoot pour la flooder.           {Fore.CYAN}║
-{Fore.CYAN}║                                                    ║
-{Fore.CYAN}║  {Fore.GREEN}✓{Fore.WHITE} Installation requise:                         {Fore.CYAN}║
-{Fore.CYAN}║    {Fore.YELLOW}pip install kahoot colorama{Fore.CYAN}                  ║
-{Fore.CYAN}║                                                    ║
-{Fore.CYAN}║  {Fore.RED}⚠  Utilisation éducative uniquement!{Fore.CYAN}            ║
-{Fore.CYAN}║                                                    ║
-{Fore.CYAN}╚════════════════════════════════════════════════════╝{Style.RESET_ALL}
-"""
-    print(info)
 
-async def send_bot(game_pin, name, bot_num, total, auto_reconnect=False):
-    """Envoie un bot dans la partie Kahoot avec reconnexion automatique optionnelle"""
+async def connect_bot(game_pin: int, name: str, auto_reconnect: bool = False):
     reconnect_count = 0
-    
-    while True:
-        client = KahootClient()
+    max_reconnects = 6
+
+    while reconnect_count < max_reconnects:
+        client = KahootClient() if KahootClient else None
         try:
+            if not client:
+                logger.error("KahootClient non disponible")
+                break
+
             await client.join_game(game_pin=game_pin, username=name)
-            if reconnect_count == 0:
-                print(f"{Fore.GREEN}✓ [{bot_num}/{total}]{Fore.WHITE} Bot {Fore.CYAN}'{name}'{Fore.WHITE} a rejoint le jeu! {Fore.GREEN}🎉{Style.RESET_ALL}")
-            else:
-                print(f"{Fore.YELLOW}🔄 [{bot_num}/{total}]{Fore.WHITE} Bot {Fore.CYAN}'{name}'{Fore.WHITE} reconnecté! (Tentative #{reconnect_count}) {Fore.GREEN}✓{Style.RESET_ALL}")
-            
-            await asyncio.sleep(3600)
-            break  # Si le temps est écoulé normalement, on sort
-            
+            logger.info(f"✅ Bot '{name}' connecté au PIN {game_pin}")
+
+            # Rester connecté plus longtemps (Kahoot déconnecte souvent après ~45-60min)
+            await asyncio.sleep(2700)  # 45 minutes
+            break
+
         except Exception as e:
             reconnect_count += 1
-            print(f"{Fore.RED}✗ [{bot_num}/{total}]{Fore.WHITE} Bot {Fore.CYAN}'{name}'{Fore.WHITE} déconnecté: {Fore.YELLOW}{e}{Style.RESET_ALL}")
-            
-            if auto_reconnect:
-                print(f"{Fore.CYAN}⏳ [{bot_num}/{total}]{Fore.WHITE} Reconnexion automatique dans 2 secondes...{Style.RESET_ALL}")
-                await asyncio.sleep(2)
+            logger.warning(f"Bot '{name}' erreur: {e} (tentative {reconnect_count}/{max_reconnects})")
+            if auto_reconnect and reconnect_count < max_reconnects:
+                await asyncio.sleep(3)
             else:
-                break  # Pas de reconnexion, on sort
+                break
 
-async def launch_attack():
-    """Lance l'attaque avec les bots"""
-    print(f"\n{Fore.MAGENTA}{'═' * 50}")
-    print(f"{Fore.MAGENTA}  🚀 CONFIGURATION DE L'ATTAQUE")
-    print(f"{Fore.MAGENTA}{'═' * 50}{Style.RESET_ALL}\n")
-    
-    # Demander les informations
-    try:
-        game_pin = int(input(f"{Fore.YELLOW}🎯 Game PIN: {Fore.WHITE}"))
-    except ValueError:
-        print(f"{Fore.RED}❌ PIN invalide! Veuillez entrer un nombre.{Style.RESET_ALL}")
-        return
-    
-    base_name = input(f"{Fore.YELLOW}👤 Nom du bot: {Fore.WHITE}")
-    
-    try:
-        nb_bots = int(input(f"{Fore.YELLOW}🤖 Nombre de bots: {Fore.WHITE}"))
-    except ValueError:
-        print(f"{Fore.RED}❌ Nombre invalide!{Style.RESET_ALL}")
-        return
-    
-    if nb_bots <= 0 or nb_bots > 1000:
-        print(f"{Fore.RED}❌ Nombre de bots invalide (1-1000)!{Style.RESET_ALL}")
-        return
-    
-    # Demander le mode de reconnexion
-    print(f"\n{Fore.CYAN}{'─' * 50}")
-    print(f"{Fore.MAGENTA}🔄 MODE DE RECONNEXION AUTOMATIQUE{Style.RESET_ALL}")
-    print(f"{Fore.WHITE}Si un bot est expulsé/déconnecté, voulez-vous qu'il")
-    print(f"se reconnecte automatiquement?{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}{'─' * 50}{Style.RESET_ALL}\n")
-    
-    auto_reconnect_choice = input(f"{Fore.YELLOW}🔄 Activer la reconnexion automatique? (o/n): {Fore.WHITE}").lower()
-    auto_reconnect = auto_reconnect_choice == 'o'
-    
-    if auto_reconnect:
-        print(f"{Fore.GREEN}✓ Mode reconnexion automatique ACTIVÉ{Style.RESET_ALL}")
-    else:
-        print(f"{Fore.YELLOW}⚠️  Mode reconnexion automatique DÉSACTIVÉ{Style.RESET_ALL}")
-    
-    # Confirmation
-    print(f"\n{Fore.CYAN}{'─' * 50}")
-    print(f"{Fore.WHITE}📊 Récapitulatif:")
-    print(f"   {Fore.GREEN}PIN:{Fore.WHITE} {game_pin}")
-    print(f"   {Fore.GREEN}Nom de base:{Fore.WHITE} {base_name}")
-    print(f"   {Fore.GREEN}Nombre de bots:{Fore.WHITE} {nb_bots}")
-    print(f"   {Fore.GREEN}Reconnexion auto:{Fore.WHITE} {'✓ Activée' if auto_reconnect else '✗ Désactivée'}")
-    print(f"{Fore.CYAN}{'─' * 50}{Style.RESET_ALL}\n")
-    
-    confirm = input(f"{Fore.YELLOW}⚡ Lancer l'attaque? (o/n): {Fore.WHITE}").lower()
-    
-    if confirm != 'o':
-        print(f"{Fore.RED}❌ Attaque annulée.{Style.RESET_ALL}")
-        return
-    
-    # Lancement des bots
-    print(f"\n{Fore.GREEN}{'═' * 50}")
-    print(f"{Fore.GREEN}  🚀 LANCEMENT DES BOTS...")
-    print(f"{Fore.GREEN}{'═' * 50}{Style.RESET_ALL}\n")
-    
+
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
+
+
+@app.post("/start")
+async def start_bots(
+    background_tasks: BackgroundTasks,
+    game_pin: int = Form(...),
+    base_name: str = Form(...),
+    nb_bots: int = Form(...),
+    auto_reconnect: bool = Form(False)
+):
+    if not 1 <= nb_bots <= 600:  # Limite raisonnable pour éviter les bans IP
+        return JSONResponse({"error": "Nombre de bots entre 1 et 600"}, status_code=400)
+
+    session_id = str(uuid.uuid4())[:8]
+
     tasks = []
     for i in range(nb_bots):
-        if i == 0:
-            name = base_name
-        else:
-            name = f"{base_name}{i}"
-        
-        task = asyncio.create_task(send_bot(game_pin, name, i + 1, nb_bots, auto_reconnect))
+        name = base_name if i == 0 else f"{base_name}{i+1}"
+        task = asyncio.create_task(connect_bot(game_pin, name, auto_reconnect))
         tasks.append(task)
-        await asyncio.sleep(0.5)
-    
-    print(f"\n{Fore.GREEN}✓ Tous les bots ont été lancés!{Style.RESET_ALL}")
-    if auto_reconnect:
-        print(f"{Fore.MAGENTA}🔄 Mode reconnexion automatique actif - Les bots se reconnecteront s'ils sont expulsés!{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}⏳ En attente... (Ctrl+C pour arrêter){Style.RESET_ALL}\n")
-    
-    try:
-        await asyncio.gather(*tasks)
-    except KeyboardInterrupt:
-        print(f"\n{Fore.YELLOW}⚠️  Arrêt des bots...{Style.RESET_ALL}")
 
-async def main():
-    """Fonction principale avec menu"""
-    print_banner()
-    
-    while True:
-        print_menu()
-        choice = input(f"{Fore.YELLOW}Votre choix: {Fore.WHITE}").strip()
-        
-        if choice == "1":
-            await launch_attack()
-            input(f"\n{Fore.CYAN}Appuyez sur Entrée pour continuer...{Style.RESET_ALL}")
-        elif choice == "2":
-            print_info()
-            input(f"\n{Fore.CYAN}Appuyez sur Entrée pour continuer...{Style.RESET_ALL}")
-        elif choice == "3":
-            print(f"\n{Fore.MAGENTA}👋 Au revoir! Merci d'avoir utilisé Kahoot Bot Flooder.{Style.RESET_ALL}\n")
-            break
-        else:
-            print(f"{Fore.RED}❌ Choix invalide! Veuillez choisir 1, 2 ou 3.{Style.RESET_ALL}")
-            await asyncio.sleep(1)
+    active_sessions[session_id] = tasks
 
-if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print(f"\n{Fore.YELLOW}⚠️  Programme interrompu par l'utilisateur.{Style.RESET_ALL}\n")
+    return {
+        "status": "success",
+        "session_id": session_id,
+        "message": f"{nb_bots} bots démarrés",
+        "count": nb_bots
+    }
+
+
+@app.get("/stop/{session_id}")
+async def stop_session(session_id: str):
+    if session_id in active_sessions:
+        for task in active_sessions[session_id]:
+            if not task.done():
+                task.cancel()
+        del active_sessions[session_id]
+        return {"status": "stopped", "message": "Session arrêtée"}
+    return {"status": "not_found"}
